@@ -37,7 +37,11 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 )
 
-var patchCodec = scheme.Codecs.LegacyCodec(apps.SchemeGroupVersion)
+var (
+	patchCodec = scheme.Codecs.LegacyCodec(apps.SchemeGroupVersion)
+
+	isPodAvailableFunc = podutil.IsPodAvailable
+)
 
 // overlappingStatefulSets sorts a list of StatefulSets by creation timestamp, using their names as a tie breaker.
 // Generally used to tie break between StatefulSets that have overlapping selectors.
@@ -438,7 +442,7 @@ func isTerminating(pod *v1.Pod) bool {
 
 // isHealthy returns true if pod is running and available and has not been terminated
 func isHealthy(pod *v1.Pod, minReadySeconds int32) bool {
-	return isRunningAndAvailable(pod, minReadySeconds) && !isTerminating(pod)
+	return isPodAvailableFunc(pod, minReadySeconds, metav1.Now()) && !isTerminating(pod)
 }
 
 // allowsBurst is true if the alpha burst annotation is set.
