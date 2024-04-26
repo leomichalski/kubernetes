@@ -230,6 +230,69 @@ func TestUpdateStorage(t *testing.T) {
 	}
 }
 
+func TestIsHealthy(t *testing.T) {
+	testCases := []struct {
+		name         string
+		inputPod     func() *v1.Pod
+		podAvailable bool
+		want         bool
+	}{
+		{
+			name: "healthy when available and not terminating",
+			inputPod: func() *v1.Pod {
+				return newPod()
+			},
+			podAvailable: true,
+			want:         true,
+		},
+		{
+			name: "unhealthy when available and terminating",
+			inputPod: func() *v1.Pod {
+				pod := newPod()
+				pod.SetDeletionTimestamp(ptr.To(metav1.Now()))
+
+				return pod
+			},
+			want: false,
+		},
+		{
+			name: "unhealthy when unavailable and not terminating",
+			inputPod: func() *v1.Pod {
+				return newPod()
+			},
+			podAvailable: false,
+			want:         false,
+		},
+		{
+			name: "unhealthy when unavailable and terminating",
+			inputPod: func() *v1.Pod {
+				pod := newPod()
+				pod.SetDeletionTimestamp(ptr.To(metav1.Now()))
+
+				return pod
+			},
+			podAvailable: false,
+			want:         false,
+		},
+	}
+
+	originalFn := isPodAvailableFunc
+	defer func() {
+		isPodAvailableFunc = originalFn
+	}()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			isPodAvailableFunc = func(pod *v1.Pod, minReadySeconds int32, now metav1.Time) bool {
+				return testCase.podAvailable
+			}
+			got := isHealthy(testCase.inputPod(), 0)
+			if testCase.want != got {
+				t.Errorf("Want Pod health status to be: [%v], got: [%v]", testCase.want, got)
+			}
+		})
+	}
+}
+
 func TestGetPersistentVolumeClaimRetentionPolicy(t *testing.T) {
 	retainPolicy := apps.StatefulSetPersistentVolumeClaimRetentionPolicy{
 		WhenScaled:  apps.RetainPersistentVolumeClaimRetentionPolicyType,
